@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>國中八年級十字交乘法互動學習程式</title>
+  <!-- 載入 Tailwind CSS 樣式庫 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    
+    body {
+      font-family: 'Noto Sans TC', 'Inter', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    /* 十字交叉線條樣式 */
+    .cross-line {
+      position: absolute;
+      stroke: #38bdf8;
+      stroke-width: 4;
+      stroke-dasharray: 8 4;
+      animation: dash 20s linear infinite;
+      opacity: 0.6;
+    }
+
+    .cross-line-glow {
+      stroke: #a855f7;
+      stroke-width: 6;
+      filter: drop-shadow(0 0 8px #a855f7);
+      opacity: 1;
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+
+    /* 格子與卡片樣式 */
+    .slot-box {
+      background: rgba(30, 41, 59, 0.8);
+      border: 2px dashed #64748b;
+      transition: all 0.2s ease;
+    }
+
+    .slot-box.active {
+      border-color: #38bdf8;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+      background: rgba(30, 41, 59, 0.95);
+    }
+
+    .slot-box.filled {
+      border-style: solid;
+      border-color: #38bdf8;
+    }
+
+    .num-card {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      cursor: pointer;
+    }
+
+    .num-card:active {
+      transform: scale(0.95);
+    }
+
+    .num-card.selected {
+      box-shadow: 0 0 0 4px #f59e0b, 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      transform: scale(1.05);
+    }
+
+    /* 高亮動畫樣式 */
+    .target-highlight {
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.8) !important;
+      transform: scale(1.08);
+      transition: all 0.3s ease;
+    }
+
+    .math-text {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* 左側教學區字體可讀性（桌機字級） */
+    #header-title {
+      font-size: 24px;
+      line-height: 1.4;
+    }
+    #header-subtitle {
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    #factor-origin-banner {
+      font-size: 17px;
+      line-height: 1.65;
+    }
+    /* 覆寫動態文字自帶的 Tailwind 小字級，確保 JS 產生的教學文字同樣放大 */
+    #factor-origin-banner .text-xs,
+    #factor-origin-banner .text-sm {
+      font-size: 17px;
+      line-height: 1.65;
+    }
+    /* 教學導覽標題（各步驟首行） */
+    #factor-origin-banner > div:first-child {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+    /* 因數拆解算式 */
+    #factor-origin-banner .factor-formula {
+      font-size: 18px;
+      line-height: 1.65;
+    }
+    #cards-phase .tip-title {
+      font-size: 17px;
+      line-height: 1.6;
+    }
+    #cards-phase .tip-body {
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    /* 手機版適度縮小，避免橫向捲動 */
+    @media (max-width: 640px) {
+      #header-title {
+        font-size: 20px;
+      }
+      #header-subtitle {
+        font-size: 14px;
+      }
+      #factor-origin-banner {
+        font-size: 15px;
+      }
+      #factor-origin-banner .text-xs,
+      #factor-origin-banner .text-sm {
+        font-size: 15px;
+      }
+      #factor-origin-banner > div:first-child {
+        font-size: 16px;
+      }
+      #factor-origin-banner .factor-formula {
+        font-size: 16px;
+      }
+      #cards-phase .tip-title {
+        font-size: 15px;
+      }
+      #cards-phase .tip-body {
+        font-size: 14px;
+      }
+    }
+
+    /* 數字卡拖曳（Pointer Events，滑鼠與觸控共用；僅 Q1-Q5） */
+    .num-card {
+      touch-action: none;
+    }
+    .slot-box.filled {
+      touch-action: none;
+    }
+    .drag-ghost {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0.95;
+      transform: translate(-50%, -50%) scale(1.08);
+      box-shadow: 0 0 0 4px #f59e0b, 0 12px 24px rgba(0, 0, 0, 0.5);
+    }
+    .slot-box.drag-over {
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.8) !important;
+      transform: scale(1.06);
+    }
+    #cards-dock.drag-over {
+      outline: 3px solid #f59e0b;
+      outline-offset: 4px;
+      border-radius: 12px;
+    }
+    .drag-src {
+      opacity: 0.35;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 sm:p-6 overflow-x-hidden">
+
+  <!-- 頁首標題區已整合至 cards-phase 左側第一張卡片（保留 header-title / header-subtitle / star-bar ID） -->
+
+  <!-- 主內容容器 -->
+  <main class="w-full max-w-6xl mx-auto flex-1 flex flex-col justify-center items-center relative">
+
+    <!-- 提示對話框 Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl max-w-md w-full text-center shadow-2xl space-y-4 transform transition-all">
+        <div id="modal-icon" class="text-5xl">💡</div>
+        <h2 id="modal-title" class="text-xl font-bold text-amber-400">提示</h2>
+        <p id="modal-msg" class="text-slate-200 text-sm sm:text-base leading-relaxed"></p>
+        <div id="modal-btn-container" class="space-y-2">
+          <button id="modal-btn" onclick="closeModal()" class="w-full py-3 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold rounded-xl shadow-lg transition">了解了！</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 階段 1-5：神秘數字卡主畫面 (Q1-Q10) -->
+    <!-- ========================================== -->
+    <section id="cards-phase" class="w-full grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+
+      <!-- 左側：教學引導區（桌面版左欄 / 手機版下方，等高由 grid stretch 與教學卡 flex-1 達成） -->
+      <div class="w-full min-w-0 flex flex-col items-stretch space-y-4 order-2 lg:order-1 lg:col-span-2">
+        <!-- 第一張：神秘數字卡（標題 / 階段 / 星星，沿用原全域 Header ID 與動態更新） -->
+        <div class="w-full bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 shadow-xl space-y-2 shrink-0">
+          <div class="flex items-start justify-between gap-3">
+            <h1 id="header-title" class="text-lg sm:text-xl font-black text-sky-400 tracking-wide leading-snug">神秘數字卡（第 1 / 10 題）</h1>
+            <div id="star-bar" class="flex space-x-1 text-xl shrink-0 pt-0.5">
+              <span class="text-slate-600">☆</span>
+              <span class="text-slate-600">☆</span>
+              <span class="text-slate-600">☆</span>
+              <span class="text-slate-600">☆</span>
+              <span class="text-slate-600">☆</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sky-400 text-xs">●</span>
+            <div id="header-subtitle" class="text-xs text-slate-300">階段 1：完整示範（帶你認識數字卡）</div>
+          </div>
+        </div>
+        <!-- 第二張：教學導覽（JS 動態填入，文字不變；flex-1 延展填滿剩餘高度，內容垂直置中、靠左對齊） -->
+        <div id="factor-origin-banner" class="w-full min-w-0 break-words overflow-hidden bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 text-xs sm:text-sm text-slate-200 shadow-xl space-y-3 flex-1 flex flex-col justify-center text-left">
+          <!-- 動態填入因數拆解與數字卡資訊 -->
+        </div>
+        <!-- 第三張：觀察重點提醒（靜態通用提示，固定左側最下方） -->
+        <div class="w-full bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 shadow-xl space-y-2 shrink-0">
+          <div class="text-sm font-bold text-amber-400 tip-title">💡 觀察重點提醒</div>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed tip-body">先檢查直向兩數相乘是否符合上方目標，再檢查兩組斜向相乘相加是否符合下方目標。</p>
+        </div>
+      </div>
+
+      <!-- 右側：學生操作區（桌面版右欄 / 手機版上方，外層整合成單一大面板） -->
+      <div class="w-full min-w-0 flex flex-col items-center space-y-4 order-1 lg:order-2 lg:col-span-3 bg-slate-900/60 border border-slate-700/60 rounded-3xl p-4 sm:p-6 shadow-2xl">
+      <!-- 上方目標數字看板 -->
+      <div class="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-3 flex flex-col items-center space-y-2 shadow-inner">
+        <div class="text-xs font-semibold text-slate-400 tracking-wider uppercase">上方目標數字</div>
+        <div class="flex justify-around w-full px-8">
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-sky-400 font-medium mb-1">左上</span>
+            <div id="target-top-left" class="w-14 h-10 bg-slate-900 border-2 border-sky-500/50 rounded-xl flex items-center justify-center text-lg sm:text-xl font-black text-sky-300 shadow-inner transition-all duration-300">1</div>
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-indigo-400 font-medium mb-1">右上</span>
+            <div id="target-top-right" class="w-14 h-10 bg-slate-900 border-2 border-indigo-500/50 rounded-xl flex items-center justify-center text-lg sm:text-xl font-black text-indigo-300 shadow-inner transition-all duration-300">6</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 十字架空格矩陣 -->
+      <div class="relative w-64 h-64 sm:w-72 sm:h-72 my-1 flex items-center justify-center">
+        <!-- SVG 斜線 -->
+        <svg class="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 200 200">
+          <line x1="45" y1="45" x2="155" y2="155" class="cross-line" />
+          <line x1="155" y1="45" x2="45" y2="155" class="cross-line" />
+        </svg>
+
+        <!-- 四個空格佈局 -->
+        <div id="slots-container" class="grid grid-cols-2 gap-x-16 gap-y-16 z-10 w-full h-full p-4">
+          <!-- 格子 0：左上 -->
+          <div id="slot-0" onclick="handleSlotClick(0)" class="slot-box rounded-2xl flex items-center justify-center cursor-pointer relative group">
+            <span class="slot-placeholder text-slate-500 text-2xl font-bold">□</span>
+            <span class="slot-content text-2xl font-bold text-white hidden"></span>
+          </div>
+          <!-- 格子 1：右上 -->
+          <div id="slot-1" onclick="handleSlotClick(1)" class="slot-box rounded-2xl flex items-center justify-center cursor-pointer relative group">
+            <span class="slot-placeholder text-slate-500 text-2xl font-bold">□</span>
+            <span class="slot-content text-2xl font-bold text-white hidden"></span>
+          </div>
+          <!-- 格子 2：左下 -->
+          <div id="slot-2" onclick="handleSlotClick(2)" class="slot-box rounded-2xl flex items-center justify-center cursor-pointer relative group">
+            <span class="slot-placeholder text-slate-500 text-2xl font-bold">□</span>
+            <span class="slot-content text-2xl font-bold text-white hidden"></span>
+          </div>
+          <!-- 格子 3：右下 -->
+          <div id="slot-3" onclick="handleSlotClick(3)" class="slot-box rounded-2xl flex items-center justify-center cursor-pointer relative group">
+            <span class="slot-placeholder text-slate-500 text-2xl font-bold">□</span>
+            <span class="slot-content text-2xl font-bold text-white hidden"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下方目標數字看板 -->
+      <div class="w-full bg-slate-800/60 border border-slate-700/80 rounded-2xl p-2.5 flex flex-col items-center shadow-inner">
+        <span class="text-xs text-emerald-400 font-medium mb-1">下方目標數字</span>
+        <div id="target-bottom" class="w-16 h-10 bg-slate-900 border-2 border-emerald-500/50 rounded-xl flex items-center justify-center text-lg sm:text-xl font-black text-emerald-300 shadow-inner">5</div>
+      </div>
+
+      <!-- 數字卡操作區 (Q1-Q5) -->
+      <div id="mode-a-cards" class="w-full flex flex-col items-center space-y-2">
+        <div id="cards-instruction-text" class="text-xs text-slate-400">點擊數字卡放置到上方空格，再次點擊可移回</div>
+        <div id="cards-dock" class="flex space-x-3 justify-center min-h-[52px]">
+          <!-- 動態渲染數字卡 -->
+        </div>
+      </div>
+
+      <!-- 操作按鈕區 -->
+      <div class="w-full pt-1">
+        <button id="verify-btn" onclick="handleActionButtonClick()" class="w-full py-3.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 active:from-sky-600 active:to-blue-700 text-white text-base font-bold rounded-xl shadow-lg shadow-sky-500/20 transition transform active:scale-95">
+          下一步
+        </button>
+      </div>
+      </div><!-- 右側操作區結束 -->
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 第 1 題答對後的過場畫面（接下來，試著找出規律！） -->
+    <!-- ========================================== -->
+    <section id="transition-after-q1" class="hidden w-full max-w-lg bg-slate-800/95 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl my-auto max-h-[85vh] overflow-y-auto">
+      <div class="flex flex-col items-center space-y-2 text-center">
+        <div class="flex space-x-1 text-xl mb-1">
+          <span class="text-amber-400">★</span>
+          <span class="text-slate-600">☆</span>
+          <span class="text-slate-600">☆</span>
+          <span class="text-slate-600">☆</span>
+          <span class="text-slate-600">☆</span>
+        </div>
+        <h2 class="text-2xl font-black text-amber-400">🔍 接下來，試著找出規律！</h2>
+        <p class="text-slate-300 text-sm font-semibold">太棒了！你已經完成第一張神秘數字卡。</p>
+        <p class="text-slate-400 text-xs leading-relaxed">
+          接下來還有幾次練習機會，我們會慢慢減少提示，看看你能不能找出這些數字真正的排列規律！
+        </p>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm text-slate-200">
+        <!-- 區塊 1 -->
+        <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+          <div class="font-bold text-sky-400 text-sm">① 第 2～4 題｜一起練習</div>
+          <p class="text-slate-300">我們會幫你：</p>
+          <ul class="list-disc list-inside space-y-1 text-slate-300 pl-1">
+            <li>找出上方數字所有可能的因數拆法</li>
+            <li>告訴你這一題要使用哪四張數字卡</li>
+            <li>如果需要，也會提示你正確的排列方式</li>
+          </ul>
+          <p class="text-amber-300/90 font-medium pt-1">「先利用這幾題觀察：為什麼有些排列可以成功？」</p>
+        </div>
+
+        <!-- 區塊 2 -->
+        <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+          <div class="font-bold text-indigo-400 text-sm">② 從第 5 題開始｜提示減少</div>
+          <p class="text-slate-300">從第 5 題開始：</p>
+          <ul class="list-disc list-inside space-y-1 text-slate-300 pl-1">
+            <li>不再直接告訴你正確的排列方式</li>
+            <li>你需要開始利用前面觀察到的現象，自己找出數字之間的規律。</li>
+          </ul>
+        </div>
+
+        <!-- 區塊 3 -->
+        <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+          <div class="font-bold text-emerald-400 text-sm">③ 後面的挑戰｜靠自己破解</div>
+          <p class="text-slate-300">之後系統會逐漸拿掉更多提示。你需要自己：</p>
+          <div class="flex items-center justify-center space-x-2 text-xs font-bold text-emerald-300 pt-1">
+            <span>找因數</span>
+            <span>→</span>
+            <span>選數字</span>
+            <span>→</span>
+            <span>排位置</span>
+            <span>→</span>
+            <span>驗證</span>
+          </div>
+          <p class="text-slate-300 text-center pt-1">看看你能不能真正破解「神秘數字卡」的秘密！</p>
+        </div>
+      </div>
+
+      <button onclick="startQ2()" class="w-full py-4 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 active:scale-95 text-white font-bold text-base rounded-xl shadow-lg transition">
+        開始觀察規律
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- Q5 過場畫面（現在開始，不再提供排列提示！） -->
+    <!-- ========================================== -->
+    <section id="transition-before-q5" class="hidden w-full max-w-lg bg-slate-800/95 border border-slate-700 rounded-3xl p-8 text-center space-y-6 shadow-2xl my-auto">
+      <div class="text-5xl animate-bounce">🔍</div>
+      <h2 class="text-2xl font-black text-amber-400">現在開始，不再提供排列提示！</h2>
+      <p class="text-slate-300 text-base leading-relaxed">
+        前面四題你已經看過不少成功的排列了。<br><br>
+        試著利用你發現的規律完成挑戰！
+      </p>
+      <button onclick="startQ5Actual()" class="w-full py-4 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-400 hover:to-blue-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        我準備好了，開始第 5 題
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 模式 B 過場畫面 (Q6 獨立挑戰升級) -->
+    <!-- ========================================== -->
+    <section id="transition-b-screen" class="hidden w-full max-w-lg bg-slate-800/90 border border-slate-700 rounded-3xl p-8 text-center space-y-6 shadow-2xl my-auto">
+      <div class="text-5xl animate-bounce">⭐⭐⭐⭐⭐</div>
+      <h2 class="text-2xl font-extrabold text-amber-400">真正自己破解！</h2>
+      <p class="text-slate-300 text-base leading-relaxed">
+        你已經順利完成了前 5 張神秘數字卡！<br><br>
+        從第 6 題開始，系統不再提供候選數字卡，連要選哪些數字都要由你自己判斷！<br><br>
+        你能靠自己發現的規律完成最後的挑戰嗎？
+      </p>
+      <button onclick="startModeB()" class="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        開始獨立破解 (Q6-Q10)
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 第 5 題後：規律檢核畫面 -->
+    <!-- ========================================== -->
+    <section id="rule-check-screen" class="hidden w-full max-w-xl bg-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl my-auto">
+      <div class="text-center space-y-2">
+        <div class="text-4xl">🔍</div>
+        <h2 class="text-2xl font-black text-amber-400">你已完成前 5 題探索！</h2>
+        <p class="text-slate-300 text-sm sm:text-base">回答下面三題，確認你發現的規律，全部答對才能進入第 6 題：</p>
+        <div class="text-xs text-slate-400">規律檢核 · 引導探索進度 <span class="text-amber-400 font-bold">★★★★★</span>（5 / 5 完成）</div>
+      </div>
+
+      <!-- 檢核題 1：左上與左直行 -->
+      <div class="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+        <p class="text-sm sm:text-base font-bold text-sky-300">第 1 題：上方左側數字，和左直行（左上格、左下格）有什麼關係？</p>
+        <div class="space-y-2">
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq1" value="wrong1" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">左上格加左下格等於上方左側數字</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq1" value="correct" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">左上格乘以左下格等於上方左側數字</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq1" value="wrong2" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">左上格減左下格等於上方左側數字</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 檢核題 2：右上與右直行 -->
+      <div class="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+        <p class="text-sm sm:text-base font-bold text-indigo-300">第 2 題：上方右側數字，和右直行（右上格、右下格）有什麼關係？</p>
+        <div class="space-y-2">
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq2" value="wrong1" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">右上格加右下格等於上方右側數字</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq2" value="wrong2" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">右上格減右下格等於上方右側數字</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq2" value="correct" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">右上格乘以右下格等於上方右側數字</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 檢核題 3：下方與斜向 -->
+      <div class="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+        <p class="text-sm sm:text-base font-bold text-emerald-300">第 3 題：下方數字是怎麼產生的？</p>
+        <div class="space-y-2">
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq3" value="wrong1" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">四個格子數字全部加起來</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq3" value="correct" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">兩組斜向數字分別相乘，再把結果相加</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="rq3" value="wrong2" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">兩組直行數字分別相加，再把結果相乘</span>
+          </label>
+        </div>
+      </div>
+
+      <button onclick="verifyRuleCheck()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        提交回答
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 前導活動完成畫面（第 10 題後） -->
+    <!-- ========================================== -->
+    <section id="finish-screen" class="hidden w-full max-w-md bg-slate-800/90 border border-slate-700 rounded-3xl p-8 text-center space-y-6 shadow-2xl my-auto">
+      <div class="text-6xl animate-bounce">🏆</div>
+      <h2 class="text-2xl font-black text-amber-300">恭喜完成十字交乘法前導挑戰！</h2>
+      <p class="text-slate-200 text-sm sm:text-base leading-relaxed">
+        你已經完成 10 題純數字探索，掌握了上方數字與直行相乘、下方數字與斜向相乘相加的規律！
+      </p>
+      <div class="p-4 bg-slate-900/80 rounded-2xl border border-slate-700 space-y-2">
+        <div class="text-xs text-slate-400">前導挑戰進度</div>
+        <div class="text-amber-400 font-bold text-lg">★ ★ ★ ★ ★ 全部完成</div>
+      </div>
+      <button onclick="restartAll()" class="w-full py-4 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        再挑戰一次
+      </button>
+      <!-- 第 2 批銜接：前往正式挑戰（獨立 challenge 入口，本按鈕僅為連結，不影響原有流程） -->
+      <a href="challenge/index.html" class="block w-full py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        前往正式挑戰 ⭐
+      </a>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 階段 4：規律發現問答（已保留，學生流程不再進入） -->
+    <!-- ========================================== -->
+    <section id="discovery-qa-screen" class="hidden w-full max-w-xl bg-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl my-auto">
+      <div class="text-center space-y-2">
+        <div class="text-4xl">🔍</div>
+        <h2 class="text-2xl font-black text-amber-400">你已經破解 10 張神秘數字卡！</h2>
+        <p class="text-slate-300 text-sm sm:text-base">你發現它們共同隱藏的秘密了嗎？回答下方問題驗證你的推理：</p>
+      </div>
+
+      <!-- 問題 1 -->
+      <div class="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+        <p class="text-sm sm:text-base font-bold text-sky-300">問題 1：上方的兩個數字，和四個格子的數字有什麼關係？</p>
+        <div class="space-y-2">
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q1" value="wrong1" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">橫向兩個數字相加</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q1" value="correct" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200 font-semibold text-emerald-400">直向兩個數字相乘</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q1" value="wrong2" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">斜向數字直接相加</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 問題 2 -->
+      <div class="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-700">
+        <p class="text-sm sm:text-base font-bold text-indigo-300">問題 2：下方的數字是怎麼產生的？</p>
+        <div class="space-y-2">
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q2" value="wrong1" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">所有四個數字隨機加總</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q2" value="correct" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200 font-semibold text-emerald-400">兩條斜線上的數字分別相乘，再把結果相加</span>
+          </label>
+          <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-xl cursor-pointer border border-slate-700 hover:border-sky-500 transition">
+            <input type="radio" name="q2" value="wrong2" class="w-4 h-4 text-sky-500">
+            <span class="text-sm text-slate-200">直向相乘後再扣掉常數</span>
+          </label>
+        </div>
+      </div>
+
+      <button onclick="verifyDiscoveryQA()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        提交回答
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 階段 5：規律揭曉動畫畫面 -->
+    <!-- ========================================== -->
+    <section id="reveal-screen" class="hidden w-full max-w-xl bg-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl my-auto flex flex-col items-center">
+      <div class="text-center space-y-2">
+        <span class="text-xs font-bold text-emerald-400 tracking-widest uppercase">回答正確 🎉</span>
+        <h2 class="text-2xl font-black text-amber-300">正式揭曉十字交乘核心規律</h2>
+      </div>
+
+      <div class="w-full bg-slate-900/80 p-6 rounded-2xl border border-slate-700 flex flex-col items-center space-y-6">
+        <div class="flex justify-between w-64 text-center">
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400">左上目標</span>
+            <div id="reveal-top-left" class="text-2xl font-bold text-sky-400 math-text">1</div>
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400">右上目標</span>
+            <div id="reveal-top-right" class="text-2xl font-bold text-indigo-400 math-text">6</div>
+          </div>
+        </div>
+
+        <div class="relative w-48 h-48 flex items-center justify-center">
+          <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 200 200">
+            <line id="reveal-line-left" x1="40" y1="40" x2="160" y2="160" class="cross-line" style="stroke: #64748b;" />
+            <line id="reveal-line-right" x1="160" y1="40" x2="40" y2="160" class="cross-line" style="stroke: #64748b;" />
+          </svg>
+          <div class="grid grid-cols-2 gap-12 text-center z-10 font-bold text-xl sm:text-2xl math-text">
+            <span id="reveal-cell-0" class="text-slate-300">1</span>
+            <span id="reveal-cell-1" class="text-slate-300">3</span>
+            <span id="reveal-cell-2" class="text-slate-300">1</span>
+            <span id="reveal-cell-3" class="text-slate-300">2</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center">
+          <span class="text-xs text-slate-400">下方目標</span>
+          <div id="reveal-bottom" class="text-2xl font-bold text-emerald-400 math-text">5</div>
+        </div>
+
+        <div id="reveal-explanation" class="text-sm sm:text-base text-slate-200 text-center font-semibold min-h-[48px] flex items-center justify-center">
+          準備觀看規律分解動畫...
+        </div>
+      </div>
+
+      <button id="reveal-next-btn" onclick="nextRevealStep()" class="w-full py-4 bg-sky-600 hover:bg-sky-500 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        開始播放規律動畫
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 階段 6：數字與代數的橋樑動畫 -->
+    <!-- ========================================== -->
+    <section id="bridge-screen" class="hidden w-full max-w-xl bg-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl my-auto flex flex-col items-center">
+      <div class="text-center space-y-2">
+        <span class="text-xs font-bold text-sky-400 tracking-widest uppercase">進階學習 🚀</span>
+        <h2 class="text-2xl font-black text-amber-300">從神秘數字到代數多項式</h2>
+      </div>
+
+      <div class="w-full bg-slate-900/80 p-6 rounded-2xl border border-slate-700 flex flex-col items-center space-y-6">
+        <div class="flex justify-between w-64 text-center">
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400">首項</span>
+            <div id="bridge-top-left" class="text-2xl font-bold text-sky-400 math-text transition-all duration-700">1</div>
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400">常數項</span>
+            <div id="bridge-top-right" class="text-2xl font-bold text-indigo-400 math-text transition-all duration-700">6</div>
+          </div>
+        </div>
+
+        <div class="relative w-48 h-48 flex items-center justify-center">
+          <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 200 200">
+            <line x1="40" y1="40" x2="160" y2="160" class="cross-line cross-line-glow" />
+            <line x1="160" y1="40" x2="40" y2="160" class="cross-line cross-line-glow" />
+          </svg>
+          <div class="grid grid-cols-2 gap-12 text-center z-10 font-bold text-xl sm:text-2xl math-text">
+            <span id="bridge-cell-a" class="text-sky-300 transition-all duration-700">1</span>
+            <span id="bridge-cell-b" class="text-indigo-300 transition-all duration-700">3</span>
+            <span id="bridge-cell-c" class="text-sky-300 transition-all duration-700">1</span>
+            <span id="bridge-cell-d" class="text-indigo-300 transition-all duration-700">2</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center">
+          <span class="text-xs text-slate-400">一次項</span>
+          <div id="bridge-bottom" class="text-2xl font-bold text-emerald-400 math-text transition-all duration-700">5</div>
+        </div>
+
+        <div class="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 text-center">
+          <div class="text-xs text-slate-400 mb-1">對應的多項式</div>
+          <div id="bridge-expression" class="text-2xl sm:text-3xl font-black text-amber-300 math-text">
+            x<sup>2</sup> + 5x + 6
+          </div>
+        </div>
+
+        <div id="bridge-explanation" class="text-sm text-slate-300 text-center h-12 flex items-center justify-center">
+          準備好看看數字是如何轉變成代數了嗎？
+        </div>
+      </div>
+
+      <button id="bridge-next-btn" onclick="nextBridgeStep()" class="w-full py-4 bg-sky-600 hover:bg-sky-500 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        下一步：觀察變換
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 階段 7：Level 1 正式學習 -->
+    <!-- ========================================== -->
+    <section id="level1-screen" class="hidden w-full max-w-xl flex flex-col items-center space-y-6">
+      
+      <!-- 步驟進度指標 -->
+      <div class="w-full grid grid-cols-4 gap-1 text-center">
+        <div id="step-pill-1" class="py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-400">① 拆首項</div>
+        <div id="step-pill-2" class="py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-400">② 拆常數</div>
+        <div id="step-pill-3" class="py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-400">③ 交叉驗證</div>
+        <div id="step-pill-4" class="py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-400">④ 寫出答案</div>
+      </div>
+
+      <!-- 題目顯示看板 -->
+      <div class="w-full bg-slate-800/90 border border-slate-700 rounded-2xl p-4 sm:p-6 text-center space-y-3 shadow-xl">
+        <span id="level1-stage-tag" class="text-xs px-3 py-1 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-full font-semibold">階段 1：完整引導</span>
+        <div class="text-xs text-slate-400">請對下列多項式進行因式分解：</div>
+        <div id="level1-problem" class="text-3xl sm:text-4xl font-black text-amber-300 math-text">
+          x<sup>2</sup> + 7x + 12
+        </div>
+      </div>
+
+      <!-- 互動十字架與控制面板 -->
+      <div class="w-full bg-slate-800/80 border border-slate-700 rounded-2xl p-6 flex flex-col items-center space-y-6 shadow-xl">
+        
+        <div class="relative w-64 h-64 flex items-center justify-center">
+          <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 200 200">
+            <line x1="40" y1="40" x2="160" y2="160" class="cross-line" />
+            <line x1="160" y1="40" x2="40" y2="160" class="cross-line" />
+          </svg>
+
+          <div class="grid grid-cols-2 gap-12 z-10 w-full p-4">
+            <div id="lvl1-cell-0" class="h-16 bg-slate-900/90 border-2 border-slate-600 rounded-xl flex items-center justify-center text-xl font-bold math-text text-sky-300">?</div>
+            <div id="lvl1-cell-1" class="h-16 bg-slate-900/90 border-2 border-slate-600 rounded-xl flex items-center justify-center text-xl font-bold math-text text-indigo-300">?</div>
+            <div id="lvl1-cell-2" class="h-16 bg-slate-900/90 border-2 border-slate-600 rounded-xl flex items-center justify-center text-xl font-bold math-text text-sky-300">?</div>
+            <div id="lvl1-cell-3" class="h-16 bg-slate-900/90 border-2 border-slate-600 rounded-xl flex items-center justify-center text-xl font-bold math-text text-indigo-300">?</div>
+          </div>
+        </div>
+
+        <div id="lvl1-verification-box" class="w-full min-h-[48px] bg-slate-900/80 rounded-xl border border-slate-700 p-3 flex items-center justify-center text-center text-sm sm:text-base font-medium">
+          <span class="text-slate-400">請跟隨引導步驟完成回答</span>
+        </div>
+
+        <div id="lvl1-controls" class="w-full space-y-3">
+          <!-- 動態載入控制項 -->
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 階段 8：Level 1 通關慶祝畫面 -->
+    <!-- ========================================== -->
+    <section id="level1-victory" class="hidden w-full max-w-md bg-slate-800/90 border border-slate-700 rounded-3xl p-8 text-center space-y-6 shadow-2xl my-auto">
+      <div class="text-6xl animate-bounce">🏆</div>
+      <h2 class="text-3xl font-black text-amber-300">Level 1 完成！</h2>
+      <p class="text-slate-200 text-base leading-relaxed">
+        太棒了！你已經連續答對 3 題，成功掌握了十字交乘最重要的基本流程！
+      </p>
+      <div class="p-4 bg-slate-900/80 rounded-2xl border border-slate-700 space-y-2">
+        <div class="text-xs text-slate-400">目前挑戰進度</div>
+        <div class="text-emerald-400 font-bold text-lg">★ ★ ★ 完全通關</div>
+      </div>
+      <button onclick="restartLevel1()" class="w-full py-4 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-lg rounded-xl shadow-lg transition">
+        再次挑戰 Level 1
+      </button>
+    </section>
+
+  </main>
+
+  <!-- JavaScript 邏輯程式碼 -->
+  <script>
+    /* ==========================================================================
+       1. 遊戲設定與自動因數組合工具函式
+       ========================================================================== */
+    function getFactorPairs(num) {
+      const pairs = [];
+      for (let i = 1; i <= Math.sqrt(num); i++) {
+        if (num % i === 0) {
+          pairs.push([i, num / i]);
+        }
+      }
+      return pairs;
+    }
+
+    function formatFactorPairsString(num) {
+      const pairs = getFactorPairs(num);
+      let str = `${num} = ${pairs[0][0]} × ${pairs[0][1]}`;
+      for (let i = 1; i < pairs.length; i++) {
+        str += ` = ${pairs[i][0]} × ${pairs[i][1]}`;
+      }
+      return str;
+    }
+
+    const CONFIG = {
+      cardsQuestions: [
+        // Q1: 完整示範
+        { targetTL: 1, targetTR: 6, targetBottom: 5, solution: [1, 3, 1, 2], cards: [1, 1, 2, 3], selectedPairTR: [2, 3] },
+        // Q2-Q4: 引導觀察 (含提示按鈕)
+        { targetTL: 1, targetTR: 4, targetBottom: 5, solution: [1, 1, 1, 4], cards: [1, 1, 1, 4], selectedPairTR: [1, 4] },
+        { targetTL: 1, targetTR: 10, targetBottom: 7, solution: [1, 2, 1, 5], cards: [1, 1, 2, 5], selectedPairTR: [2, 5] },
+        { targetTL: 1, targetTR: 12, targetBottom: 7, solution: [1, 3, 1, 4], cards: [1, 1, 3, 4], selectedPairTR: [3, 4] },
+        // Q5: 取消排列提示
+        { targetTL: 1, targetTR: 12, targetBottom: 8, solution: [1, 2, 1, 6], cards: [1, 1, 2, 6], selectedPairTR: [2, 6] },
+        // Q6-Q10: 獨立探索 (自行輸入數字)
+        { targetTL: 1, targetTR: 15, targetBottom: 8, solution: [1, 3, 1, 5] },
+        { targetTL: 1, targetTR: 18, targetBottom: 9, solution: [1, 3, 1, 6] },
+        { targetTL: 1, targetTR: 20, targetBottom: 9, solution: [1, 4, 1, 5] },
+        { targetTL: 1, targetTR: 24, targetBottom: 10, solution: [1, 4, 1, 6] },
+        { targetTL: 1, targetTR: 24, targetBottom: 11, solution: [1, 3, 1, 8] }
+      ],
+      maxFailsBeforeHint: 2
+    };
+
+    let state = {
+      phase: 'cards_a', // 'cards_a', 'transition_q1', 'transition_q5', 'transition_b', 'discovery_qa', 'reveal', 'bridge', 'level1'
+      currentQIndex: 0,
+      isQ1Tutorial: true,
+      tutStep: 1,
+      failCount: 0,
+      
+      // 模式 A 格子與卡片狀態
+      slots: [null, null, null, null],
+      dockCards: [],
+      selectedCardIndex: null,
+
+      // 統計
+      startTime: null,
+      verificationCount: 0,
+
+      // 規律揭曉動畫狀態
+      revealStep: 0,
+
+      // 橋接動畫狀態
+      bridgeStep: 0,
+
+      // Level 1 狀態
+      level1Stage: 1,
+      level1SubStep: 1,
+      level1Streak: 0,
+      currentL1Prob: null,
+      l1UserChoice: {}
+    };
+
+    // 網頁載入時初始化第一題與同畫面教學
+    window.onload = function() {
+      initCardsPhase();
+    };
+
+    function showModal(title, msg, icon = "💡", customBtnHtml = null) {
+      document.getElementById('modal-icon').innerText = icon;
+      document.getElementById('modal-title').innerText = title;
+      document.getElementById('modal-msg').innerHTML = msg;
+      
+      const btnContainer = document.getElementById('modal-btn-container');
+      if (customBtnHtml) {
+        btnContainer.innerHTML = customBtnHtml;
+      } else {
+        btnContainer.innerHTML = `<button id="modal-btn" onclick="closeModal()" class="w-full py-3 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold rounded-xl shadow-lg transition">了解了！</button>`;
+      }
+      document.getElementById('feedback-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('feedback-modal').classList.add('hidden');
+    }
+
+    /* ==========================================================================
+       2. 神秘數字卡流程控制 (Q1-Q10)
+       ========================================================================== */
+    function initCardsPhase() {
+      const q = CONFIG.cardsQuestions[state.currentQIndex];
+      state.failCount = 0;
+      state.slots = [null, null, null, null];
+      state.selectedCardIndex = null;
+      state.startTime = Date.now();
+      state.verificationCount = 0;
+
+      // 填入上方與下方目標數字
+      document.getElementById('target-top-left').innerText = q.targetTL;
+      document.getElementById('target-top-right').innerText = q.targetTR;
+      document.getElementById('target-bottom').innerText = q.targetBottom;
+
+      renderHeaderAndStars();
+
+      if (state.currentQIndex === 0 && state.isQ1Tutorial) {
+        renderQ1InlineTutorial();
+      } else if (state.currentQIndex >= 1 && state.currentQIndex <= 3) {
+        state.dockCards = [...q.cards];
+        renderStandardModeA();
+      } else if (state.currentQIndex === 4) {
+        state.dockCards = [...q.cards];
+        renderStandardModeA();
+      } else {
+        renderStandardModeB();
+      }
+    }
+
+    function renderHeaderAndStars() {
+      document.getElementById('header-title').innerText = `神秘數字卡（第 ${state.currentQIndex + 1} / 10 題）`;
+      
+      let subtitle = "階段 1：完整示範（帶你認識數字卡）";
+      if (state.currentQIndex >= 1 && state.currentQIndex <= 3) {
+        subtitle = "階段 2：引導觀察（觀察排列與因數的關係）";
+      } else if (state.currentQIndex === 4) {
+        subtitle = "階段 3：自己試試看（取消排列提示）";
+      } else if (state.currentQIndex >= 5) {
+        // S3：獨立挑戰顯示第幾題，學生可辨識進度
+        subtitle = `階段 4：獨立挑戰（第 ${state.currentQIndex - 5 + 1} / 5 題）`;
+      }
+      document.getElementById('header-subtitle').innerText = subtitle;
+      renderStarBar();
+    }
+
+    // 第 1 題同畫面教學步驟控制
+    function renderQ1InlineTutorial() {
+      const banner = document.getElementById('factor-origin-banner');
+      const verifyBtn = document.getElementById('verify-btn');
+      const instructionText = document.getElementById('cards-instruction-text');
+      const tlEl = document.getElementById('target-top-left');
+      const trEl = document.getElementById('target-top-right');
+      const slotsContainer = document.getElementById('slots-container');
+
+      // E1：從獨立挑戰重來時，數字卡容器可能仍被隱藏，先恢復顯示
+      document.getElementById('mode-a-cards').classList.remove('hidden');
+      slotsContainer.classList.add('pointer-events-none');
+      instructionText.classList.add('hidden');
+
+      tlEl.classList.remove('target-highlight');
+      trEl.classList.remove('target-highlight');
+
+      if (state.tutStep === 1) {
+        tlEl.classList.add('target-highlight');
+        trEl.classList.add('target-highlight');
+        
+        banner.innerHTML = `
+          <div class="text-amber-400 font-bold mb-1">💡 教學導覽 (Step 1 / 4)</div>
+          <div class="text-slate-200 text-xs sm:text-sm">等等你要把數字卡放進這四個空格。<br>開始之前，我們先看看這些數字卡是怎麼來的！<br><span class="text-sky-300 font-bold">先觀察上方的兩個數字：1 和 6。</span></div>
+        `;
+        verifyBtn.innerText = "下一步";
+        state.dockCards = [];
+        renderDockCards();
+        renderSlotsModeA();
+
+      } else if (state.tutStep === 2) {
+        tlEl.classList.add('target-highlight');
+        trEl.classList.remove('target-highlight');
+        state.dockCards = [1, 1];
+        renderDockCards();
+        renderSlotsModeA();
+
+        banner.innerHTML = `
+          <div class="text-amber-400 font-bold mb-1">💡 教學導覽 (Step 2 / 4)：拆解左上數字</div>
+          <div class="text-slate-200 text-xs sm:text-sm"><span class="text-sky-300 font-bold">先看看 1 可以怎麼拆。</span><br>所有可能的拆法：<span class="text-sky-300 font-semibold factor-formula">1 = 1 × 1</span><br>所以我們得到兩張數字卡：<span class="font-bold text-sky-300">[1]、[1]</span>。</div>
+        `;
+        verifyBtn.innerText = "下一步";
+
+      } else if (state.tutStep === 3) {
+        tlEl.classList.remove('target-highlight');
+        trEl.classList.add('target-highlight');
+        state.dockCards = [1, 1, 2, 3];
+        renderDockCards();
+        renderSlotsModeA();
+
+        const trPairs = formatFactorPairsString(6);
+        banner.innerHTML = `
+          <div class="text-amber-400 font-bold mb-1">💡 教學導覽 (Step 3 / 4)：拆解右上數字</div>
+          <div class="text-slate-200 text-xs sm:text-sm"><span class="text-indigo-300 font-bold">接著看看 6 可以怎麼拆。</span><br>所有可能的拆法：<span class="text-indigo-300 font-semibold factor-formula">${trPairs}</span><br>這次我們選用 <span class="text-indigo-300 font-bold">2 × 3</span>，產生數字卡：<span class="font-bold text-indigo-300">[2]、[3]</span>。</div>
+        `;
+        verifyBtn.innerText = "下一步";
+
+      } else if (state.tutStep === 4) {
+        trEl.classList.remove('target-highlight');
+        state.dockCards = [1, 1, 2, 3];
+        renderDockCards();
+        renderSlotsModeA();
+
+        const trPairs = formatFactorPairsString(6);
+        banner.innerHTML = `
+          <div class="text-amber-300 font-bold mb-1 text-xs sm:text-sm">✨ 教學導覽 (Step 4 / 4)：準備探索</div>
+          <div class="text-slate-200 text-xs">【所有可能的拆法】<br><span class="factor-formula">1 = 1 × 1 ｜ ${trPairs}</span><br><br><span class="text-emerald-400 font-bold">四張數字卡準備好了！請把 1、1、2、3 放進四個空格，試著找出能同時符合上方 1、6 和下方 5 的排列方式。</span></div>
+        `;
+        verifyBtn.innerText = "開始探索";
+      }
+    }
+
+    function handleActionButtonClick() {
+      if (state.currentQIndex === 0 && state.isQ1Tutorial) {
+        if (state.tutStep < 4) {
+          state.tutStep++;
+          renderQ1InlineTutorial();
+        } else {
+          state.isQ1Tutorial = false;
+          document.getElementById('target-top-left').classList.remove('target-highlight');
+          document.getElementById('target-top-right').classList.remove('target-highlight');
+          document.getElementById('slots-container').classList.remove('pointer-events-none');
+          document.getElementById('cards-instruction-text').classList.remove('hidden');
+          
+          const q = CONFIG.cardsQuestions[0];
+          const trPairs = formatFactorPairsString(q.targetTR);
+          const tlPairs = formatFactorPairsString(q.targetTL);
+          document.getElementById('factor-origin-banner').innerHTML = `
+            <div class="font-bold text-sky-400 mb-1">【所有可能的拆法】</div>
+            <div class="text-slate-300 factor-formula">${tlPairs}</div>
+            <div class="text-slate-300 factor-formula">${trPairs}</div>
+            <div class="mt-2 pt-2 border-t border-slate-700/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
+              <div><span class="text-amber-400 font-semibold">【本題選用】</span> 1 × 1 與 ${q.selectedPairTR[0]} × ${q.selectedPairTR[1]}</div>
+              <div><span class="text-sky-300 font-semibold">【本題數字卡】</span> [${q.cards.join('] [')}]</div>
+            </div>
+          `;
+
+          state.dockCards = [...q.cards];
+          renderStandardModeA();
+        }
+      } else {
+        checkCurrentArrangement();
+      }
+    }
+
+    function renderStandardModeA() {
+      const q = CONFIG.cardsQuestions[state.currentQIndex];
+      document.getElementById('mode-a-cards').classList.remove('hidden');
+      document.getElementById('verify-btn').innerText = "試試這個排列";
+      document.getElementById('cards-instruction-text').classList.remove('hidden');
+      document.getElementById('slots-container').classList.remove('pointer-events-none');
+
+      const tlPairs = formatFactorPairsString(q.targetTL);
+      const trPairs = formatFactorPairsString(q.targetTR);
+      const originBanner = document.getElementById('factor-origin-banner');
+      originBanner.innerHTML = `
+        <div class="font-bold text-sky-400 mb-1">【所有可能的拆法】</div>
+        <div class="text-slate-300 factor-formula">${tlPairs}</div>
+        <div class="text-slate-300 factor-formula">${trPairs}</div>
+        <div class="mt-2 pt-2 border-t border-slate-700/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
+          <div><span class="text-amber-400 font-semibold">【本題選用】</span> 1 × 1 與 ${q.selectedPairTR[0]} × ${q.selectedPairTR[1]}</div>
+          <div><span class="text-sky-300 font-semibold">【本題數字卡】</span> [${q.cards.join('] [')}]</div>
+        </div>
+      `;
+
+      renderDockCards();
+      renderSlotsModeA();
+    }
+
+    function renderStandardModeB() {
+      document.getElementById('mode-a-cards').classList.add('hidden');
+      document.getElementById('verify-btn').innerText = "驗證排列";
+      document.getElementById('slots-container').classList.remove('pointer-events-none');
+
+      // 獨立挑戰：左側不顯示任何因數拆解、選用組合或正確排列
+      const originBanner = document.getElementById('factor-origin-banner');
+      originBanner.innerHTML = `
+        <div class="font-bold text-amber-300 mb-1">【獨立挑戰】</div>
+        <div class="text-slate-200">從第 6 題開始，請靠自己完成挑戰：自行決定四個格子要填入哪些數字。</div>
+        <div class="mt-2 pt-2 border-t border-slate-700/80 text-slate-300">檢查方向：左直行相乘是否等於左上數字？右直行相乘是否等於右上數字？兩組斜向相乘相加是否等於下方數字？</div>
+      `;
+
+      renderSlotsModeB();
+    }
+
+    function renderStarBar() {
+      const starBar = document.getElementById('star-bar');
+      starBar.innerHTML = '';
+      if (state.phase.startsWith('cards') || state.phase === 'transition_q1' || state.phase === 'transition_q5' || state.phase === 'transition_b' || state.phase === 'rule_check' || state.phase === 'finish') {
+        // S3：引導探索顯示已完成題數；獨立挑戰重新計算進度，避免第 6 題後星星不再變化
+        let litCount;
+        if (state.phase === 'finish') {
+          litCount = 5;
+        } else if (state.phase === 'rule_check') {
+          litCount = 5;
+        } else if (state.currentQIndex >= 5) {
+          litCount = state.currentQIndex - 5;
+        } else {
+          litCount = state.currentQIndex;
+        }
+        for (let i = 0; i < 5; i++) {
+          const star = document.createElement('span');
+          const isCompleted = i < litCount;
+          star.innerText = isCompleted ? '★' : '☆';
+          star.className = isCompleted ? 'text-amber-400' : 'text-slate-600';
+          starBar.appendChild(star);
+        }
+      } else if (state.phase === 'level1') {
+        for (let i = 0; i < 3; i++) {
+          const star = document.createElement('span');
+          const isLit = state.level1Streak > i;
+          star.innerText = isLit ? '★' : '☆';
+          star.className = isLit ? 'text-amber-400' : 'text-slate-600';
+          starBar.appendChild(star);
+        }
+      }
+    }
+
+    function renderDockCards() {
+      const dock = document.getElementById('cards-dock');
+      dock.innerHTML = '';
+      state.dockCards.forEach((val, index) => {
+        const card = document.createElement('div');
+        if (val !== null) {
+          card.className = `num-card w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-xl text-white select-none ${state.selectedCardIndex === index ? 'selected' : ''}`;
+          card.innerText = val;
+          card.onclick = () => selectCard(index);
+          card.onpointerdown = (e) => onCardPointerDown(e, index);
+        } else {
+          card.className = 'w-12 h-12 rounded-xl border-2 border-dashed border-slate-700/50 bg-slate-900/30';
+        }
+        dock.appendChild(card);
+      });
+    }
+
+    function selectCard(index) {
+      if (state.selectedCardIndex === index) {
+        state.selectedCardIndex = null;
+      } else {
+        state.selectedCardIndex = index;
+      }
+      renderDockCards();
+    }
+
+    /* ==========================================================================
+       2a. 數字卡拖曳（Pointer Events：滑鼠與觸控共用，僅 Q1-Q5 探索模式）
+       ========================================================================== */
+    const DRAG_THRESHOLD = 8;
+    let dragState = null;
+    let suppressClickAfterDrag = false;
+
+    // 拖曳手勢結束後緊接的 click 是手勢殘留，先攔截一次，避免誤觸放置邏輯
+    document.addEventListener('click', (e) => {
+      if (suppressClickAfterDrag) {
+        suppressClickAfterDrag = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+
+    function canDragCards() {
+      return state.currentQIndex < 5 && !state.isQ1Tutorial;
+    }
+
+    function onCardPointerDown(e, index) {
+      if (!canDragCards()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (state.dockCards[index] === null || state.dockCards[index] === undefined) return;
+      startDrag(e, 'dock', index, state.dockCards[index]);
+    }
+
+    function onSlotPointerDown(e, index) {
+      if (!canDragCards()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (state.slots[index] === null) return;
+      startDrag(e, 'slot', index, state.slots[index]);
+    }
+
+    function startDrag(e, srcType, srcIndex, value) {
+      if (dragState) return;
+      // 清除舊的點選高亮，避免與拖曳視覺混淆（不重渲染，以免破壞手勢中的元素）
+      state.selectedCardIndex = null;
+      document.querySelectorAll('#cards-dock .num-card.selected').forEach(el => el.classList.remove('selected'));
+      dragState = {
+        srcType: srcType, srcIndex: srcIndex, value: value,
+        pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+        dragging: false, ghost: null, srcEl: e.currentTarget
+      };
+      window.addEventListener('pointermove', onDragMove);
+      window.addEventListener('pointerup', onDragUp);
+      window.addEventListener('pointercancel', onDragCancel);
+    }
+
+    function onDragMove(e) {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+      if (!dragState.dragging) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        dragState.dragging = true;
+        suppressClickAfterDrag = true;
+        const g = document.createElement('div');
+        g.className = 'num-card drag-ghost w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-xl text-white select-none';
+        g.innerText = dragState.value;
+        document.body.appendChild(g);
+        dragState.ghost = g;
+        if (dragState.srcEl) dragState.srcEl.classList.add('drag-src');
+      }
+      dragState.ghost.style.left = e.clientX + 'px';
+      dragState.ghost.style.top = e.clientY + 'px';
+      updateDropHighlight(e.clientX, e.clientY);
+    }
+
+    function updateDropHighlight(x, y) {
+      clearDropHighlight();
+      const el = document.elementFromPoint(x, y);
+      if (!el || !el.closest) return;
+      const slotEl = el.closest('#slots-container > div');
+      if (slotEl) {
+        slotEl.classList.add('drag-over');
+        return;
+      }
+      // 只有「格子→卡片區」才高亮（卡→卡片區是原地不動，不提示）
+      if (dragState.srcType === 'slot' && el.closest('#mode-a-cards')) {
+        document.getElementById('cards-dock').classList.add('drag-over');
+      }
+    }
+
+    function clearDropHighlight() {
+      document.querySelectorAll('.slot-box.drag-over').forEach(el => el.classList.remove('drag-over'));
+      const dock = document.getElementById('cards-dock');
+      if (dock) dock.classList.remove('drag-over');
+    }
+
+    function onDragUp(e) {
+      if (!dragState || (e.pointerId !== undefined && e.pointerId !== dragState.pointerId)) {
+        cleanupDrag();
+        return;
+      }
+      if (!dragState.dragging) {
+        // 未超過門檻：視為一般點擊，交給 onclick 處理
+        suppressClickAfterDrag = false;
+        cleanupDrag();
+        return;
+      }
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      applyDrop(el);
+      cleanupDrag();
+      renderDockCards();
+      renderSlotsModeA();
+      // 安全網：若瀏覽器未派發手勢後的 click，仍清除標記（正常流程由攔截器先清除）
+      setTimeout(() => { suppressClickAfterDrag = false; }, 0);
+    }
+
+    function onDragCancel() {
+      suppressClickAfterDrag = false;
+      cleanupDrag();
+      renderDockCards();
+      renderSlotsModeA();
+    }
+
+    function cleanupDrag() {
+      if (dragState && dragState.ghost && dragState.ghost.parentNode) {
+        dragState.ghost.parentNode.removeChild(dragState.ghost);
+      }
+      clearDropHighlight();
+      document.querySelectorAll('.drag-src').forEach(el => el.classList.remove('drag-src'));
+      dragState = null;
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', onDragUp);
+      window.removeEventListener('pointercancel', onDragCancel);
+    }
+
+    function applyDrop(el) {
+      const srcType = dragState.srcType;
+      const srcIndex = dragState.srcIndex;
+      const slotEl = el && el.closest ? el.closest('#slots-container > div') : null;
+      if (slotEl) {
+        const m = slotEl.id.match(/^slot-(\d)$/);
+        if (!m) return;
+        const dst = parseInt(m[1], 10);
+        if (srcType === 'dock') {
+          if (state.slots[dst] === null) {
+            state.slots[dst] = state.dockCards[srcIndex];
+            state.dockCards[srcIndex] = null;
+          } else {
+            // 以索引交換，同值卡不混淆
+            const tmp = state.slots[dst];
+            state.slots[dst] = state.dockCards[srcIndex];
+            state.dockCards[srcIndex] = tmp;
+          }
+        } else {
+          if (dst === srcIndex) return; // 同一格：恢復原狀
+          const tmp = state.slots[dst]; // 可能為 null（空格式直接搬移）
+          state.slots[dst] = state.slots[srcIndex];
+          state.slots[srcIndex] = tmp;
+        }
+        return;
+      }
+      if (srcType === 'slot' && el && el.closest && el.closest('#mode-a-cards')) {
+        // 拖回卡片區（同原點擊邏輯：優先補空位，否則附加）
+        const v = state.slots[srcIndex];
+        state.slots[srcIndex] = null;
+        const emptyIdx = state.dockCards.findIndex(c => c === null);
+        if (emptyIdx !== -1) {
+          state.dockCards[emptyIdx] = v;
+        } else {
+          state.dockCards.push(v);
+        }
+      }
+      // 其他無效位置：不更動狀態（恢復原狀）
+    }
+
+    function renderSlotsModeA() {
+      for (let i = 0; i < 4; i++) {
+        const slotEl = document.getElementById(`slot-${i}`);
+        slotEl.className = "slot-box rounded-2xl flex items-center justify-center cursor-pointer relative group";
+        // S2：從 Mode B 切回時，恢復行內點擊事件（renderSlotsModeB 會移除它）
+        slotEl.setAttribute('onclick', `handleSlotClick(${i})`);
+        // 拖曳：有數字的格子可拖出（Mode B 切換時由 renderSlotsModeB 清除）
+        slotEl.onpointerdown = (e) => onSlotPointerDown(e, i);
+        
+        let placeholder = slotEl.querySelector('.slot-placeholder');
+        let content = slotEl.querySelector('.slot-content');
+
+        if (!placeholder) {
+          slotEl.innerHTML = `
+            <span class="slot-placeholder text-slate-500 text-2xl font-bold">□</span>
+            <span class="slot-content text-2xl font-bold text-white hidden"></span>
+          `;
+          placeholder = slotEl.querySelector('.slot-placeholder');
+          content = slotEl.querySelector('.slot-content');
+        }
+
+        if (state.slots[i] !== null) {
+          slotEl.classList.add('filled');
+          placeholder.classList.add('hidden');
+          content.classList.remove('hidden');
+          content.innerText = state.slots[i];
+        } else {
+          slotEl.classList.remove('filled');
+          placeholder.classList.remove('hidden');
+          content.classList.add('hidden');
+          content.innerText = '';
+        }
+      }
+    }
+
+    function handleSlotClick(slotIdx) {
+      if (state.currentQIndex >= 5 || state.isQ1Tutorial) return;
+
+      if (state.slots[slotIdx] !== null) {
+        const cardVal = state.slots[slotIdx];
+        state.slots[slotIdx] = null;
+        const emptyIdx = state.dockCards.findIndex(c => c === null);
+        if (emptyIdx !== -1) {
+          state.dockCards[emptyIdx] = cardVal;
+        } else {
+          state.dockCards.push(cardVal);
+        }
+      } else if (state.selectedCardIndex !== null) {
+        state.slots[slotIdx] = state.dockCards[state.selectedCardIndex];
+        state.dockCards[state.selectedCardIndex] = null;
+        state.selectedCardIndex = null;
+      }
+      renderDockCards();
+      renderSlotsModeA();
+    }
+
+    function renderSlotsModeB() {
+      for (let i = 0; i < 4; i++) {
+        const slotEl = document.getElementById(`slot-${i}`);
+        // S2：切換為輸入欄位時，移除行內 onclick，避免舊點擊事件干擾輸入
+        slotEl.removeAttribute('onclick');
+        // 第 6-10 題為輸入模式，不保留數字卡拖曳事件
+        slotEl.onpointerdown = null;
+        slotEl.className = "slot-box rounded-2xl flex items-center justify-center relative p-1";
+        slotEl.innerHTML = `
+          <input type="number" id="input-slot-${i}" placeholder="?" min="1" max="99" step="1"
+            class="w-full h-full bg-transparent text-center font-bold text-2xl text-white outline-none focus:text-sky-400" />
+        `;
+      }
+    }
+
+    // S6：第 6-10 題只接受整數（保留負整數），空白、小數、非數值一律退回
+    function getSlotInt(i) {
+      const el = document.getElementById('input-slot-' + i);
+      if (!el) return null;
+      const raw = el.value.trim();
+      if (raw === '') return null;
+      const n = Number(raw);
+      if (!Number.isInteger(n)) return null;
+      return n;
+    }
+
+    function checkCurrentArrangement() {
+      const q = CONFIG.cardsQuestions[state.currentQIndex];
+      let A, B, C, D;
+
+      state.verificationCount++;
+
+      if (state.currentQIndex < 5) {
+        if (state.slots.includes(null)) {
+          showModal("尚未完成", "請將四張數字卡通通放到空格中再進行試驗！", "⚠️");
+          return;
+        }
+        [A, B, C, D] = state.slots;
+      } else {
+        A = getSlotInt(0);
+        B = getSlotInt(1);
+        C = getSlotInt(2);
+        D = getSlotInt(3);
+
+        if (A === null || B === null || C === null || D === null) {
+          showModal("尚未輸入完成", "請在四個空格中都輸入整數！（不可空白或小數）", "⚠️");
+          return;
+        }
+      }
+
+      const isValidTL = (A * C === q.targetTL);
+      const isValidTR = (B * D === q.targetTR);
+      const isValidBottom = (A * D + B * C === q.targetBottom);
+
+      if (isValidTL && isValidTR && isValidBottom) {
+        state.failCount = 0;
+        
+        if (state.currentQIndex === 0) {
+          // 第 1 題答對後顯示新的過場說明畫面
+          showModal("⭐ 答對了！", "太棒了！這個排列順利符合了上方與下方的目標數字！", "🎉", 
+            `<button onclick="closeModal(); showTransitionAfterQ1();" class="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow-lg transition">了解了！</button>`
+          );
+        } else {
+          showModal("⭐ 答對了！", "太棒了！這個排列順利符合了上方與下方的目標數字！", "🎉");
+          document.getElementById('modal-btn').onclick = () => {
+            closeModal();
+            nextCardsQuestion();
+          };
+        }
+      } else {
+        state.failCount++;
+        
+        // Q2-Q4 專屬提示邏輯
+        if (state.currentQIndex >= 1 && state.currentQIndex <= 3) {
+          if (state.failCount === 1) {
+            showModal("🤔 差一點點", "🤔 換個位置看看。", "🤔");
+          } else if (state.failCount === 2) {
+            showModal("💡 提示", "💡 仔細觀察四個位置與上方、下方數字的關係。", "💡");
+          } else {
+            // 提供按鈕看正確排法提示
+            const sol = q.solution;
+            showModal("🔍 排列提示", `你已經嘗試多次了，以下是本題正確的四張數字卡排法（請觀察它們的排列位置）：<br><br>
+              <div class="bg-slate-900 p-3 rounded-xl inline-block font-bold text-xl text-sky-300">
+                ${sol[0]} &nbsp; ${sol[1]}<br>${sol[2]} &nbsp; ${sol[3]}
+              </div>`, "💡");
+          }
+        } else if (state.currentQIndex === 4) {
+          if (state.failCount >= CONFIG.maxFailsBeforeHint) {
+            showModal("提示", "🤔 第 5 題開始不提供排列提示，請回想前四題成功的排法，試著把數字排在正確的位置！", "💡");
+          } else {
+            showModal("差一點點", "🤔 好像還差一點，換個位置再試試看！", "🤔");
+          }
+        } else {
+          // 第 6-10 題：只給概念性提示，不公布答案
+          if (state.failCount >= CONFIG.maxFailsBeforeHint) {
+            showModal("提示", "🤔 再檢查一次：左直行相乘是否等於左上數字？右直行相乘是否等於右上數字？兩組斜向相乘相加是否等於下方數字？", "💡");
+          } else {
+            showModal("差一點點", "🤔 好像還差一點，再檢查看看！", "🤔");
+          }
+        }
+      }
+    }
+
+    function showTransitionAfterQ1() {
+      document.getElementById('cards-phase').classList.add('hidden');
+      document.getElementById('transition-after-q1').classList.remove('hidden');
+      state.phase = 'transition_q1';
+    }
+
+    function startQ2() {
+      document.getElementById('transition-after-q1').classList.add('hidden');
+      document.getElementById('cards-phase').classList.remove('hidden');
+      state.currentQIndex = 1;
+      initCardsPhase();
+    }
+
+    function nextCardsQuestion() {
+      state.currentQIndex++;
+
+      if (state.currentQIndex === 4) {
+        // 即將進入第 5 題 (Index 4) 顯示過場畫面
+        state.phase = 'transition_q5';
+        document.getElementById('cards-phase').classList.add('hidden');
+        document.getElementById('transition-before-q5').classList.remove('hidden');
+      } else if (state.currentQIndex === 5) {
+        // 完成第 5 題後先進入規律檢核，通過後才進入獨立挑戰
+        showRuleCheck();
+      } else if (state.currentQIndex === 10) {
+        // 完成第 10 題後直接進入前導完成畫面（代數流程已保留但不再進入）
+        state.phase = 'finish';
+        document.getElementById('cards-phase').classList.add('hidden');
+        document.getElementById('header-title').innerText = "前導挑戰完成";
+        document.getElementById('header-subtitle').innerText = "純數字探索全部完成";
+        renderStarBar();
+        document.getElementById('finish-screen').classList.remove('hidden');
+      } else {
+        initCardsPhase();
+      }
+    }
+
+    function startQ5Actual() {
+      document.getElementById('transition-before-q5').classList.add('hidden');
+      document.getElementById('cards-phase').classList.remove('hidden');
+      initCardsPhase();
+    }
+
+    function startModeB() {
+      state.phase = 'cards_b';
+      document.getElementById('transition-b-screen').classList.add('hidden');
+      document.getElementById('cards-phase').classList.remove('hidden');
+      initCardsPhase();
+    }
+
+    /* ==========================================================================
+       2b. 第 5 題後：規律檢核（純數字前導專用）
+       ========================================================================== */
+    function showRuleCheck() {
+      state.phase = 'rule_check';
+      document.getElementById('cards-phase').classList.add('hidden');
+      document.getElementById('transition-b-screen').classList.add('hidden');
+      document.getElementById('header-title').innerText = "規律檢核";
+      document.getElementById('header-subtitle').innerText = "確認你發現的數字規律";
+      renderStarBar();
+      // 清空上一輪作答，學生需重新回答三題
+      document.querySelectorAll('input[name="rq1"], input[name="rq2"], input[name="rq3"]').forEach(el => { el.checked = false; });
+      document.getElementById('rule-check-screen').classList.remove('hidden');
+    }
+
+    function verifyRuleCheck() {
+      const r1 = document.querySelector('input[name="rq1"]:checked');
+      const r2 = document.querySelector('input[name="rq2"]:checked');
+      const r3 = document.querySelector('input[name="rq3"]:checked');
+
+      if (!r1 || !r2 || !r3) {
+        showModal("尚未完成", "請三題都回答後再提交！", "⚠️");
+        return;
+      }
+
+      const wrong = [];
+      if (r1.value !== 'correct') wrong.push(1);
+      if (r2.value !== 'correct') wrong.push(2);
+      if (r3.value !== 'correct') wrong.push(3);
+
+      if (wrong.length === 0) {
+        showModal("🎉 檢核通過！", "三題全對！你已經掌握純數字的十字交乘規律，接下來進入獨立挑戰！", "🎉");
+        document.getElementById('modal-btn').onclick = () => {
+          closeModal();
+          document.getElementById('rule-check-screen').classList.add('hidden');
+          state.phase = 'transition_b';
+          renderStarBar();
+          document.getElementById('transition-b-screen').classList.remove('hidden');
+        };
+      } else {
+        const hints = [];
+        if (wrong.includes(1)) hints.push("第 1 題：回想前 5 題，左上格和左下格用加法還是乘法，才會剛好等於上方左側數字？");
+        if (wrong.includes(2)) hints.push("第 2 題：回想前 5 題，右上格和右下格用加法還是乘法，才會剛好等於上方右側數字？");
+        if (wrong.includes(3)) hints.push("第 3 題：回想下方數字和兩條斜線有什麼運算關係？");
+        showModal("再想想看", "第 " + wrong.join("、") + " 題還不太對，只需重答這幾題：<br><br>" + hints.join("<br><br>"), "🤔");
+      }
+    }
+
+    function restartAll() {
+      // E1：隱藏所有非主畫面，避免殘留遮擋；狀態由 initCardsPhase 重置
+      document.getElementById('finish-screen').classList.add('hidden');
+      document.getElementById('rule-check-screen').classList.add('hidden');
+      document.getElementById('transition-b-screen').classList.add('hidden');
+      document.getElementById('transition-before-q5').classList.add('hidden');
+      document.getElementById('transition-after-q1').classList.add('hidden');
+      document.getElementById('feedback-modal').classList.add('hidden');
+      state.currentQIndex = 0;
+      state.isQ1Tutorial = true;
+      state.tutStep = 1;
+      state.phase = 'cards_a';
+      state.slots = [null, null, null, null];
+      state.dockCards = [];
+      state.selectedCardIndex = null;
+      state.failCount = 0;
+      document.getElementById('cards-phase').classList.remove('hidden');
+      initCardsPhase();
+    }
+
+    /* ==========================================================================
+       3. 第三階段：規律發現問答
+       ========================================================================== */
+    function verifyDiscoveryQA() {
+      const q1Selected = document.querySelector('input[name="q1"]:checked');
+      const q2Selected = document.querySelector('input[name="q2"]:checked');
+
+      if (!q1Selected || !q2Selected) {
+        showModal("尚未完成", "請回答完這兩個問題再提交！", "⚠️");
+        return;
+      }
+
+      if (q1Selected.value === 'correct' && q2Selected.value === 'correct') {
+        showModal("🎉 太棒了！", "恭喜！你順利完成了所有挑戰！接下來讓我們透過動畫正式揭曉規律的核心！", "🎉");
+        document.getElementById('modal-btn').onclick = () => {
+          closeModal();
+          startRevealAnimation();
+        };
+      } else {
+        showModal("再想想看", "好像有答案不符合你的親身體驗喔！回想一下剛才直向與斜向數字的操作吧！", "🤔");
+      }
+    }
+
+    /* ==========================================================================
+       4. 第四階段：規律揭曉動畫
+       ========================================================================== */
+    function startRevealAnimation() {
+      state.phase = 'reveal';
+      state.revealStep = 0;
+      document.getElementById('discovery-qa-screen').classList.add('hidden');
+      document.getElementById('reveal-screen').classList.remove('hidden');
+      document.getElementById('header-title').innerText = "十字交乘核心規律揭曉";
+      document.getElementById('header-subtitle').innerText = "透過動畫觀察規律原理";
+
+      document.getElementById('reveal-top-left').innerText = "1";
+      document.getElementById('reveal-top-right').innerText = "6";
+      document.getElementById('reveal-cell-0').innerText = "1";
+      document.getElementById('reveal-cell-1').innerText = "3";
+      document.getElementById('reveal-cell-2').innerText = "1";
+      document.getElementById('reveal-cell-3').innerText = "2";
+      document.getElementById('reveal-bottom').innerText = "5";
+      document.getElementById('reveal-explanation').innerText = "準備觀看規律分解動畫...";
+    }
+
+    function nextRevealStep() {
+      state.revealStep++;
+      const explanation = document.getElementById('reveal-explanation');
+      const cell0 = document.getElementById('reveal-cell-0');
+      const cell1 = document.getElementById('reveal-cell-1');
+      const cell2 = document.getElementById('reveal-cell-2');
+      const cell3 = document.getElementById('reveal-cell-3');
+      const lineLeft = document.getElementById('reveal-line-left');
+      const lineRight = document.getElementById('reveal-line-right');
+
+      if (state.revealStep === 1) {
+        cell0.className = "text-sky-400 font-bold scale-110 transition-all";
+        cell2.className = "text-sky-400 font-bold scale-110 transition-all";
+        lineLeft.style.stroke = "#38bdf8";
+        lineLeft.style.strokeWidth = "6";
+        explanation.innerHTML = "<span class='text-sky-300 font-bold'>第一步：</span>左側直向相乘 <span class='text-sky-400'>1 × 1 = 1</span>（得到左上目標）";
+      } else if (state.revealStep === 2) {
+        cell0.className = "text-slate-300";
+        cell2.className = "text-slate-300";
+        lineLeft.style.stroke = "#64748b";
+        lineLeft.style.strokeWidth = "4";
+
+        cell1.className = "text-indigo-400 font-bold scale-110 transition-all";
+        cell3.className = "text-indigo-400 font-bold scale-110 transition-all";
+        lineRight.style.stroke = "#818cf8";
+        lineRight.style.strokeWidth = "6";
+        explanation.innerHTML = "<span class='text-indigo-300 font-bold'>第二步：</span>右側直向相乘 <span class='text-indigo-400'>3 × 2 = 6</span>（得到右上目標）";
+      } else if (state.revealStep === 3) {
+        cell1.className = "text-slate-300";
+        cell3.className = "text-slate-300";
+        lineRight.style.stroke = "#64748b";
+        lineRight.style.strokeWidth = "4";
+
+        cell0.className = "text-sky-400 font-bold";
+        cell3.className = "text-indigo-400 font-bold";
+        explanation.innerHTML = "<span class='text-emerald-300 font-bold'>第三步：</span>第一條斜線相乘 <span class='text-emerald-400'>1 × 2 = 2</span>";
+      } else if (state.revealStep === 4) {
+        cell0.className = "text-slate-300";
+        cell3.className = "text-slate-300";
+        cell1.className = "text-indigo-400 font-bold";
+        cell2.className = "text-sky-400 font-bold";
+        explanation.innerHTML = "<span class='text-emerald-300 font-bold'>第四步：</span>第二條斜線相乘 <span class='text-emerald-400'>3 × 1 = 3</span>";
+      } else if (state.revealStep === 5) {
+        cell1.className = "text-slate-300";
+        cell2.className = "text-slate-300";
+        document.getElementById('reveal-bottom').className = "text-2xl font-bold text-emerald-400 scale-125 transition-all";
+        explanation.innerHTML = "<span class='text-emerald-300 font-bold'>第五步：</span>交叉相乘後相加 <span class='text-emerald-400'>2 + 3 = 5</span>（得到下方目標）";
+        document.getElementById('reveal-next-btn').innerText = "進入數字與代數橋接";
+      } else if (state.revealStep === 6) {
+        startBridgeAnimation();
+      }
+    }
+
+    /* ==========================================================================
+       5. 第五階段：數字與代數的橋樑動畫
+       ========================================================================== */
+    function startBridgeAnimation() {
+      state.phase = 'bridge';
+      state.bridgeStep = 0;
+      document.getElementById('reveal-screen').classList.add('hidden');
+      document.getElementById('bridge-screen').classList.remove('hidden');
+      document.getElementById('header-title').innerText = "數字與代數的橋樑";
+      document.getElementById('header-subtitle').innerText = "觀察神秘數字卡如何轉變為多項式";
+
+      document.getElementById('bridge-top-left').innerText = "1";
+      document.getElementById('bridge-top-right').innerText = "6";
+      document.getElementById('bridge-cell-a').innerText = "1";
+      document.getElementById('bridge-cell-b').innerText = "3";
+      document.getElementById('bridge-cell-c').innerText = "1";
+      document.getElementById('bridge-cell-d').innerText = "2";
+      document.getElementById('bridge-bottom').innerText = "5";
+      document.getElementById('bridge-expression').innerHTML = "x<sup>2</sup> + 5x + 6";
+      document.getElementById('bridge-explanation').innerText = "準備好看看數字是如何轉變成代數了嗎？";
+    }
+
+    function nextBridgeStep() {
+      state.bridgeStep++;
+      const explanation = document.getElementById('bridge-explanation');
+
+      if (state.bridgeStep === 1) {
+        document.getElementById('bridge-cell-a').innerText = "x";
+        document.getElementById('bridge-cell-c').innerText = "x";
+        explanation.innerHTML = "<span class='text-sky-300 font-bold'>第一步：</span>將左側的 1、1 轉換成未知數 <span class='math-text text-sky-400'>x, x</span>";
+      } else if (state.bridgeStep === 2) {
+        document.getElementById('bridge-top-left').innerHTML = "x<sup>2</sup>";
+        explanation.innerHTML = "<span class='text-sky-300 font-bold'>第二步：</span>因為 <span class='math-text text-sky-400'>x × x = x<sup>2</sup></span>，左上方變成了 <span class='math-text text-sky-400'>x<sup>2</sup></span>";
+      } else if (state.bridgeStep === 3) {
+        document.getElementById('bridge-bottom').innerText = "5x";
+        explanation.innerHTML = "<span class='text-emerald-300 font-bold'>第三步：</span>交叉相乘相加 <span class='math-text text-emerald-400'>2x + 3x = 5x</span>，下方變成了 <span class='math-text text-emerald-400'>5x</span>";
+      } else if (state.bridgeStep === 4) {
+        document.getElementById('bridge-expression').innerHTML = "x<sup>2</sup> + 5x + 6 = (x + 3)(x + 2)";
+        explanation.innerHTML = "<span class='text-amber-300 font-bold'>驚喜發現：</span>原來剛才的神秘數字卡，就是十字交乘的結構！";
+        document.getElementById('bridge-next-btn').innerText = "進入 Level 1 正式學習";
+      } else if (state.bridgeStep === 5) {
+        startLevel1();
+      }
+    }
+
+    /* ==========================================================================
+       6. 第六階段：Level 1 正式學習
+       ========================================================================== */
+    function generateL1Problem() {
+      let m = Math.floor(Math.random() * 8) + 1;
+      let n = Math.floor(Math.random() * 8) + 1;
+      while (m === n) {
+        n = Math.floor(Math.random() * 8) + 1;
+      }
+      return {
+        m: m,
+        n: n,
+        b: m + n,
+        c: m * n
+      };
+    }
+
+    function startLevel1() {
+      state.phase = 'level1';
+      state.level1Stage = 1;
+      state.level1Streak = 0;
+      document.getElementById('bridge-screen').classList.add('hidden');
+      document.getElementById('level1-screen').classList.remove('hidden');
+      document.getElementById('header-title').innerText = "Level 1：正式學習";
+      
+      initL1Problem();
+    }
+
+    function initL1Problem() {
+      state.currentL1Prob = generateL1Problem();
+      state.level1SubStep = 1;
+      state.l1UserChoice = {};
+
+      renderStarBar();
+      updateL1PillHighlight();
+
+      const tag = document.getElementById('level1-stage-tag');
+      if (state.level1Stage === 1) {
+        tag.innerText = "第一階段：完整引導";
+        tag.className = "text-xs px-3 py-1 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-full font-semibold";
+      } else if (state.level1Stage === 2) {
+        tag.innerText = "第二階段：部分引導";
+        tag.className = "text-xs px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full font-semibold";
+      } else {
+        tag.innerText = "第三階段：獨立挑戰 (需連續答對 3 題)";
+        tag.className = "text-xs px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full font-semibold";
+      }
+
+      const prob = state.currentL1Prob;
+      document.getElementById('level1-problem').innerHTML = `x<sup>2</sup> + ${prob.b}x + ${prob.c}`;
+
+      document.getElementById('lvl1-cell-0').innerText = '?';
+      document.getElementById('lvl1-cell-1').innerText = '?';
+      document.getElementById('lvl1-cell-2').innerText = '?';
+      document.getElementById('lvl1-cell-3').innerText = '?';
+
+      renderL1StepUI();
+    }
+
+    function updateL1PillHighlight() {
+      for (let i = 1; i <= 4; i++) {
+        const pill = document.getElementById(`step-pill-${i}`);
+        if (i === state.level1SubStep) {
+          pill.className = "py-2 bg-sky-600 border border-sky-400 rounded-lg text-xs font-bold text-white shadow-lg";
+        } else if (i < state.level1SubStep) {
+          pill.className = "py-2 bg-emerald-800/60 border border-emerald-600 rounded-lg text-xs font-bold text-emerald-300";
+        } else {
+          pill.className = "py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-500";
+        }
+      }
+    }
+
+    function renderL1StepUI() {
+      updateL1PillHighlight();
+      const prob = state.currentL1Prob;
+      const controls = document.getElementById('lvl1-controls');
+      const verifyBox = document.getElementById('lvl1-verification-box');
+
+      if (state.level1Stage === 1) {
+        if (state.level1SubStep === 1) {
+          verifyBox.innerHTML = "<b>Step 1：先看看 x<sup>2</sup>。</b>哪兩個式子相乘會得到 x<sup>2</sup>？";
+          controls.innerHTML = `
+            <div class="grid grid-cols-1 gap-2">
+              <button onclick="handleL1Step1Choice(true)" class="p-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-sky-300 math-text transition">x × x</button>
+            </div>
+          `;
+        } else if (state.level1SubStep === 2) {
+          verifyBox.innerHTML = `<b>Step 2：接著看看常數項 ${prob.c}。</b>哪些兩個整數相乘會得到 ${prob.c}？`;
+          
+          const factorPairs = getFactorPairs(prob.c);
+          let btnsHtml = factorPairs.map(pair => `
+            <button onclick="handleL1Step2Choice(${pair[0]}, ${pair[1]})" class="p-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-indigo-300 transition">
+              ${pair[0]} × ${pair[1]}
+            </button>
+          `).join('');
+
+          controls.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${btnsHtml}</div>`;
+        } else if (state.level1SubStep === 3) {
+          const p1 = state.l1UserChoice.p1;
+          const p2 = state.l1UserChoice.p2;
+          const crossSum = p1 + p2;
+          const isCorrect = (crossSum === prob.b);
+
+          verifyBox.innerHTML = `
+            <b>Step 3：交叉驗證。</b>斜向相乘相加：<br>
+            <span class="text-amber-300 font-bold">${p1}x + ${p2}x = ${crossSum}x</span> 
+            ${isCorrect ? '✅ 符合一次項！' : `❌ 不符合題目的 ${prob.b}x`}
+          `;
+
+          if (isCorrect) {
+            controls.innerHTML = `
+              <button onclick="proceedToL1Step4()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition">
+                ✓ 驗證成功，前往下一步
+              </button>
+            `;
+          } else {
+            controls.innerHTML = `
+              <button onclick="retryL1Step2()" class="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow-lg transition">
+                這組不對，換另一組常數試試看
+              </button>
+            `;
+          }
+        } else if (state.level1SubStep === 4) {
+          verifyBox.innerHTML = "<b>Step 4：寫出答案。</b>橫向寫出因式分解結果！";
+          controls.innerHTML = `
+            <div class="text-center font-bold text-xl text-amber-300 math-text p-2">
+              x<sup>2</sup> + ${prob.b}x + ${prob.c} = (x + ${state.l1UserChoice.p1})(x + ${state.l1UserChoice.p2})
+            </div>
+            <button onclick="finishL1Question()" class="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow-lg transition">
+              完成本題！
+            </button>
+          `;
+        }
+      } else if (state.level1Stage === 2) {
+        document.getElementById('lvl1-cell-0').innerText = 'x';
+        document.getElementById('lvl1-cell-2').innerText = 'x';
+
+        if (state.level1SubStep <= 3) {
+          verifyBox.innerHTML = "<b>請輸入常數項拆解的兩個數：</b>";
+          document.getElementById('lvl1-cell-1').innerHTML = `<input type="number" id="l1-in-1" class="w-full text-center bg-transparent outline-none text-indigo-300" placeholder="?" />`;
+          document.getElementById('lvl1-cell-3').innerHTML = `<input type="number" id="l1-in-2" class="w-full text-center bg-transparent outline-none text-indigo-300" placeholder="?" />`;
+
+          controls.innerHTML = `
+            <button onclick="verifyL1Stage2Input()" class="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow-lg transition">
+              交叉驗證
+            </button>
+          `;
+        } else if (state.level1SubStep === 4) {
+          verifyBox.innerHTML = "<b>驗證成功！請完成因式分解表示式：</b>";
+          controls.innerHTML = `
+            <div class="flex items-center justify-center space-x-2 text-xl font-bold math-text">
+              <span>(x + </span>
+              <input type="number" id="ans-in-1" class="w-12 h-10 bg-slate-900 border border-slate-600 rounded-lg text-center text-amber-300" />
+              <span>)(x + </span>
+              <input type="number" id="ans-in-2" class="w-12 h-10 bg-slate-900 border border-slate-600 rounded-lg text-center text-amber-300" />
+              <span>)</span>
+            </div>
+            <button onclick="verifyL1Stage2Final()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition mt-3">
+              確認答案
+            </button>
+          `;
+        }
+      } else if (state.level1Stage === 3) {
+        verifyBox.innerHTML = "<b>請完成十字架上全部 4 個位置：</b>";
+        document.getElementById('lvl1-cell-0').innerHTML = `<input type="text" id="l3-in-0" class="w-full text-center bg-transparent outline-none text-sky-300" placeholder="x" />`;
+        document.getElementById('lvl1-cell-1').innerHTML = `<input type="number" id="l3-in-1" class="w-full text-center bg-transparent outline-none text-indigo-300" placeholder="?" />`;
+        document.getElementById('lvl1-cell-2').innerHTML = `<input type="text" id="l3-in-2" class="w-full text-center bg-transparent outline-none text-sky-300" placeholder="x" />`;
+        document.getElementById('lvl1-cell-3').innerHTML = `<input type="number" id="l3-in-3" class="w-full text-center bg-transparent outline-none text-indigo-300" placeholder="?" />`;
+
+        controls.innerHTML = `
+          <button onclick="verifyL1Stage3All()" class="w-full py-3 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition">
+            驗證十字交乘
+          </button>
+        `;
+      }
+    }
+
+    function handleL1Step1Choice(correct) {
+      document.getElementById('lvl1-cell-0').innerText = 'x';
+      document.getElementById('lvl1-cell-2').innerText = 'x';
+      state.level1SubStep = 2;
+      renderL1StepUI();
+    }
+
+    function handleL1Step2Choice(p1, p2) {
+      state.l1UserChoice.p1 = p1;
+      state.l1UserChoice.p2 = p2;
+      document.getElementById('lvl1-cell-1').innerText = p1;
+      document.getElementById('lvl1-cell-3').innerText = p2;
+      state.level1SubStep = 3;
+      renderL1StepUI();
+    }
+
+    function retryL1Step2() {
+      state.level1SubStep = 2;
+      document.getElementById('lvl1-cell-1').innerText = '?';
+      document.getElementById('lvl1-cell-3').innerText = '?';
+      renderL1StepUI();
+    }
+
+    function proceedToL1Step4() {
+      state.level1SubStep = 4;
+      renderL1StepUI();
+    }
+
+    function verifyL1Stage2Input() {
+      const p1 = parseInt(document.getElementById('l1-in-1').value);
+      const p2 = parseInt(document.getElementById('l1-in-2').value);
+      const prob = state.currentL1Prob;
+
+      if (isNaN(p1) || isNaN(p2)) {
+        showModal("尚未輸入", "請輸入兩個整數！", "⚠️");
+        return;
+      }
+
+      if (p1 * p2 !== prob.c) {
+        showModal("常數項不符", `這兩個數相乘等於 ${p1 * p2}，不等於常數項 ${prob.c} 喔！`, "🤔");
+        return;
+      }
+
+      if (p1 + p2 !== prob.b) {
+        showModal("交叉驗證未通過", `這兩個數乘積符合常數項 ${prob.c}，但交叉相加等於 ${p1 + p2}x，不符合題目的 ${prob.b}x，換一組試試看！`, "💡");
+        return;
+      }
+
+      state.l1UserChoice.p1 = p1;
+      state.l1UserChoice.p2 = p2;
+      state.level1SubStep = 4;
+      renderL1StepUI();
+    }
+
+    function verifyL1Stage2Final() {
+      const a1 = parseInt(document.getElementById('ans-in-1').value);
+      const a2 = parseInt(document.getElementById('ans-in-2').value);
+      const prob = state.currentL1Prob;
+
+      if ((a1 === prob.m && a2 === prob.n) || (a1 === prob.n && a2 === prob.m)) {
+        finishL1Question();
+      } else {
+        showModal("答錯囉", "請確認括號內的常數與剛才十字交乘結果一致喔！", "🤔");
+      }
+    }
+
+    function verifyL1Stage3All() {
+      const c0 = document.getElementById('l3-in-0').value.trim().toLowerCase();
+      const c1 = parseInt(document.getElementById('l3-in-1').value);
+      const c2 = document.getElementById('l3-in-2').value.trim().toLowerCase();
+      const c3 = parseInt(document.getElementById('l3-in-3').value);
+      const prob = state.currentL1Prob;
+
+      if (c0 !== 'x' || c2 !== 'x') {
+        showModal("首項拆解錯誤", "左側首項拆解請輸入 x 哦！", "🤔");
+        return;
+      }
+
+      if (isNaN(c1) || isNaN(c3)) {
+        showModal("常數項未輸入", "請輸入右側兩個常數！", "⚠️");
+        return;
+      }
+
+      const prodMatches = (c1 * c3 === prob.c);
+      const sumMatches = (c1 + c3 === prob.b);
+
+      if (prodMatches && sumMatches) {
+        state.level1Streak++;
+        renderStarBar();
+
+        if (state.level1Streak >= 3) {
+          document.getElementById('level1-screen').classList.add('hidden');
+          document.getElementById('level1-victory').classList.remove('hidden');
+        } else {
+          showModal("⭐ 答對了！", `太棒了！獨立挑戰連續成功 ${state.level1Streak} 題！`, "🎉");
+          document.getElementById('modal-btn').onclick = () => {
+            closeModal();
+            initL1Problem();
+          };
+        }
+      } else {
+        state.level1Streak = 0;
+        renderStarBar();
+        showModal("驗證未通過", "首項或常數項交叉相加不符合題目，連續答對紀錄已重置，重新抽一題再試一次！", "💔");
+        document.getElementById('modal-btn').onclick = () => {
+          closeModal();
+          initL1Problem();
+        };
+      }
+    }
+
+    function finishL1Question() {
+      if (state.level1Stage === 1) {
+        state.level1Stage = 2;
+        showModal("🎉 第一階段完成", "接著進入【第二階段：部分引導】！", "⭐");
+        document.getElementById('modal-btn').onclick = () => {
+          closeModal();
+          initL1Problem();
+        };
+      } else if (state.level1Stage === 2) {
+        state.level1Stage = 3;
+        showModal("🎉 第二階段完成", "接著進入【第三階段：獨立挑戰】！需連續答對 3 題才能通關！", "🏆");
+        document.getElementById('modal-btn').onclick = () => {
+          closeModal();
+          initL1Problem();
+        };
+      }
+    }
+
+    function restartLevel1() {
+      document.getElementById('level1-victory').classList.add('hidden');
+      document.getElementById('level1-screen').classList.remove('hidden');
+      startLevel1();
+    }
+  </script>
+</body>
+</html>
