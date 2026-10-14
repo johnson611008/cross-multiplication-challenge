@@ -4,6 +4,7 @@ import { buildBank, freshSeed, checkBankShape } from './bank-loader.js';
 import { parseAnswer, checkAnswer } from './verify.js';
 import { createRecord, isFinished, submitAttempt, stageStats, totalStats } from './state.js';
 import { createTimer, formatElapsed } from './timer.js';
+import { preferredDemo } from './demo-answer.js';
 import { pressDigit, pressSign, pressBack, pressClear } from './keypad.js';
 import * as ui from './ui.js';
 
@@ -124,7 +125,8 @@ export function createApp(opts) {
       feedback: fb,
       locked: isFinished(rec),
       showNext: isFinished(rec),
-      revealHtml: rec.revealed ? ui.revealReference(q) : null,
+      revealHtml: rec.revealed ? ui.revealReference({ P: q.P, Q: q.Q, R: q.R, ref: rec.demo || q.ref }) : null,
+      verifyLabel: verifyLabelFor(rec),
       keyHint: S.keypadHintSeen !== true,
     };
   }
@@ -134,13 +136,22 @@ export function createApp(opts) {
       const pts = rec.score;
       return { kind: 'good', html: '⭐ 答對了！本題得 ' + pts + ' 分。' };
     }
-    if (rec.status === STATUS.IN_PROGRESS && rec.attempts.length === 1 && !rec.attempts[0].correct) {
+    if (rec.status === STATUS.IN_PROGRESS && rec.attempts.length === 1 && !rec.attempts[0].correct
+      && !rec.retryDismissed) {
       return { kind: 'hint', html: '第 1 次未通過（1／2）。' + escHtml(CHALLENGE.CONCEPT_HINT) + '已保留你的輸入，修改後可再驗證一次。' };
     }
     if (rec.status === STATUS.BOTH_WRONG) {
       return { kind: 'bad', html: '兩次都未通過，本題 0 分。正確排列已展示在下方。' };
     }
     return null;
+  }
+
+  /** 主按鈕文字：第一次答錯後先顯示「再試一次」，按下後才恢復「驗證答案」 */
+  function verifyLabelFor(rec) {
+    if (!isFinished(rec) && rec.attempts.length === 1 && !rec.retryDismissed) {
+      return '再試一次';
+    }
+    return '驗證答案';
   }
 
   function escHtml(s) {
@@ -205,6 +216,14 @@ export function createApp(opts) {
     const q = questionAt(S.idx);
     const rec = recordFor(q);
     if (isFinished(rec)) return; // 鎖定後忽略
+    // 「再試一次」：收起提示、不驗證、不消耗次數
+    if (rec.attempts.length === 1 && !rec.retryDismissed) {
+      rec.retryDismissed = true;
+      persist();
+      ui.clearFeedback();
+      ui.setVerifyLabel('驗證答案');
+      return;
+    }
     submitting = true;
     try {
       const parsed = parseAnswer(ui.readInputs());
@@ -215,6 +234,10 @@ export function createApp(opts) {
       const chk = checkAnswer(q, parsed.values);
       const res = submitAttempt(rec, q.tier, parsed.values, chk.correct, now());
       if (res.ignored) return;
+      if (rec.status === STATUS.BOTH_WRONG) {
+        // 示範答案正數優先（判定規則不變）
+        rec.demo = preferredDemo(q.P, q.Q, q.R, q.ref);
+      }
       persist();
       ui.updateHud({ score: computeTotal(), attempts: rec.attempts.length });
       if (chk.correct) {
@@ -226,10 +249,11 @@ export function createApp(opts) {
         ui.setFeedback('bad', '兩次都未通過，本題 0 分。正確排列已展示在下方。');
         ui.lockInputs(true);
         ui.lockKeypad(true);
-        document.getElementById('cb-reveal').innerHTML = ui.revealReference(q);
+        document.getElementById('cb-reveal').innerHTML = ui.revealReference({ P: q.P, Q: q.Q, R: q.R, ref: rec.demo || q.ref });
         ui.showNext(true);
       } else {
         ui.setFeedback('hint', '第 1 次未通過（1／2）。' + escHtml(CHALLENGE.CONCEPT_HINT) + '已保留你的輸入，修改後可再驗證一次。');
+        ui.setVerifyLabel('再試一次');
       }
     } finally {
       submitting = false;

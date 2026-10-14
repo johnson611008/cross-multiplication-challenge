@@ -96,7 +96,7 @@ export function renderQuestion(vm, handlers) {
     + '<div class="cb-attempts">已提交 <span id="cb-attempts">' + vm.attemptsUsed + '</span>／' + vm.maxAttempts + ' 次</div>'
     + '<div class="cb-feedback" id="cb-feedback" role="status"></div>'
     + '<div id="cb-reveal"></div>'
-    + '<button class="cb-btn" id="cb-verify">驗證答案</button>'
+    + '<button class="cb-btn" id="cb-verify">' + esc(vm.verifyLabel || '驗證答案') + '</button>'
     + '<button class="cb-btn cb-btn-green cb-hidden" id="cb-next">下一題</button>'
     + '</section>';
   ['A', 'B', 'C', 'D'].forEach((k) => {
@@ -147,6 +147,20 @@ export function setFeedback(kind, html) {
   if (!el) return;
   el.className = 'cb-feedback cb-fb-' + kind;
   el.innerHTML = html;
+}
+
+/** 清除提示區（「再試一次」收起提示用，不碰輸入與次數） */
+export function clearFeedback() {
+  const el = document.getElementById('cb-feedback');
+  if (!el) return;
+  el.className = 'cb-feedback';
+  el.innerHTML = '';
+}
+
+/** 切換主按鈕文字（驗證答案／再試一次） */
+export function setVerifyLabel(text) {
+  const el = document.getElementById('cb-verify');
+  if (el) el.textContent = text;
 }
 
 export function lockInputs(locked) {
