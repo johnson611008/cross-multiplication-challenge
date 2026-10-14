@@ -57,11 +57,15 @@ body {
   border: 1px solid rgba(245, 158, 11, .4);
   border-radius: 999px; padding: 2px 12px; font-weight: 800;
 }
-.cb-targets { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+/* P/Q 與 A–D 同欄幾何（同寬、同內距、同欄距），中心自然對齊 */
+.cb-targets {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 56px;
+  max-width: 340px; margin: 0 auto 12px; padding: 0 18px;
+}
 .cb-target {
   background: rgba(15, 23, 42, .8);
   border: 1px solid #334155; border-radius: 14px;
-  padding: 8px 6px 10px; text-align: center;
+  padding: 8px 6px 10px; text-align: center; min-width: 0;
 }
 .cb-target-bottom { margin-bottom: 12px; }
 .cb-tlabel { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
@@ -89,6 +93,7 @@ body {
   width: 100%; min-width: 0;
   background: transparent; border: 0; outline: none;
   text-align: center; font-size: 26px; font-weight: 800; color: #fff;
+  touch-action: manipulation;
 }
 .cb-cell input:disabled { color: #7dd3fc; }
 .cb-cell input:focus { color: #7dd3fc; }
@@ -129,16 +134,18 @@ body {
 
 @media (max-width: 380px) {
   .cb-grid { gap: 32px 40px; padding: 12px; }
+  .cb-targets { gap: 40px; padding: 0 12px; }
   .cb-cell input { font-size: 22px; }
   .cb-tval { font-size: 20px; }
   .cb-title { font-size: 19px; }
 }
 
-/* 遊戲內建數字鍵盤＋格子選取 */
-.cb-stage {
+/* 左欄固定 340（目標＋十字＋R 同寬，欄位自然對齊），鍵盤在右不擠壓 */
+.cb-mainrow {
   display: flex; flex-direction: column; gap: 12px;
   align-items: center;
 }
+.cb-leftcol { width: 100%; max-width: 340px; min-width: 0; }
 .cb-keypad { width: 100%; max-width: 340px; }
 .cb-keys {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
@@ -175,9 +182,9 @@ body {
   border-color: #f59e0b; border-style: solid;
   box-shadow: 0 0 14px rgba(245, 158, 11, .55);
 }
-/* 桌機：鍵盤在圖形旁邊；手機：鍵盤在圖形下方 */
+/* 桌機：左欄＋鍵盤並排；手機：鍵盤在圖形下方 */
 @media (min-width: 640px) {
-  .cb-stage { flex-direction: row; align-items: start; justify-content: center; }
-  .cb-crosswrap { flex: 1 1 auto; }
+  .cb-mainrow { flex-direction: row; align-items: start; justify-content: center; }
+  .cb-leftcol { flex: 0 0 auto; width: 340px; max-width: 340px; }
   .cb-keypad { flex: 0 0 196px; max-width: 196px; }
 }
