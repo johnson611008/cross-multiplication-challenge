@@ -19,6 +19,7 @@ export function createApp(opts) {
   let submitting = false;
   let tickId = null;
   let selectedKey = 'A'; // 虛擬鍵盤目前選取的格子（純 UI 狀態，答案仍只有 draft 一份）
+  let noPersistOnHide = false; // 重置流程用：避免 unload 時把已清除的進度又寫回去
 
   function persist() {
     S.timer = timer.toJSON();
@@ -309,15 +310,30 @@ export function createApp(opts) {
 
   function resetAll() {
     stopTick();
+    noPersistOnHide = true;
     store.clear();
     window.location.reload();
   }
 
   /* ---------- 啟動 ---------- */
+  // 舊版 v1（50 題）儲存鍵：新版不載入，僅提示後移除（只動自家命名空間，不碰其他資料）
+  const LEGACY_KEYS = ['ccb1.challenge.v1'];
+
   function boot() {
     let saved = null;
     // 跳轉／重整前強制寫入，草稿防抖等待中也不遺失
-    window.addEventListener('pagehide', () => { try { if (S) persist(); } catch (e) { /* 忽略 */ } });
+    window.addEventListener('pagehide', () => { try { if (S && !noPersistOnHide) persist(); } catch (e) { /* 忽略 */ } });
+    let legacyFound = false;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        for (const k of LEGACY_KEYS) {
+          if (localStorage.getItem(k) !== null) {
+            legacyFound = true;
+            localStorage.removeItem(k);
+          }
+        }
+      }
+    } catch (e) { /* 忽略 */ }
     try {
       saved = store.load();
     } catch (e) {
@@ -334,7 +350,11 @@ export function createApp(opts) {
     S = freshSnapshot(null, []);
     S.bank = [];
     timer = createTimer(null, clock);
-    showIntro();
+    if (legacyFound) {
+      showIntro('偵測到舊版 50 題進度，新版 25 題挑戰將重新開始（舊進度不沿用）。');
+    } else {
+      showIntro();
+    }
     return { resumed: false };
   }
 
