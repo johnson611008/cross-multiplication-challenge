@@ -13,6 +13,8 @@ export function createRecord(q) {
     startedAt: null,
     completedAt: null,
     revealed: false, // 是否已展示參考答案（both_wrong）
+    demo: null, // 實際展示的示範答案（正數優先；缺省用 ref，舊存檔相容）
+    retryDismissed: false, // 第一次答錯後是否已按過「再試一次」（控制按鈕與提示）
     draft: { A: '', B: '', C: '', D: '' }, // 作答中四格輸入（供重新整理恢復）
   };
 }
